@@ -58,16 +58,8 @@ export function validatePositiveNumber(value: any, fieldName: string): void {
 
 // Función para validar el apalancamiento según el mercado
 export function validateLeverage(market: string, leverage: number): void {
-  // Si el mercado es BTC_USD o ETH_USD, el apalancamiento debe estar entre 1 y 50
-  if (market === 'BTC_USD' || market === 'ETH_USD') {
-    if (leverage < 1 || leverage > 50) {
-      throw new Error(`Leverage for ${market} must be between 1 and 50`);
-    }
-  }
-  // Si el mercado es SPCX, el apalancamiento debe ser exactamente 1
-  if (market === 'SPCX') {
-    if (leverage !== 1) {
-      throw new Error(`Leverage for SPCX must be exactly 1`);
-    }
+  // Ahora todos los mercados (BTC, ETH y SPCX) permiten apalancamiento entre 1 y 50
+  if (leverage < 1 || leverage > 50) {
+    throw new Error(`Leverage for ${market} must be between 1 and 50`);
   }
 }
