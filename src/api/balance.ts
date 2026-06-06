@@ -19,21 +19,26 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Buscamos el usuario por walletAddress con todas sus relaciones
-    const user = await prisma.user.findUnique({
+    // Buscamos el usuario o lo creamos si no existe (Login Automático)
+    const user = await prisma.user.upsert({
       where: { walletAddress },
-      // Incluimos las posiciones activas del usuario
+      update: {}, // Si existe, no actualizamos nada aquí
+      create: {
+        walletAddress,
+        availableBalance: 0
+      },
+      // Incluimos todas sus relaciones
       include: {
         positions: true,
-        // Incluimos las órdenes pendientes del usuario
         pendingOrders: true,
-        // Incluimos el historial de trades del usuario (ordenado por fecha descendente, máximo 50)
         tradeHistory: {
           orderBy: { createdAt: 'desc' },
           take: 50
         }
       }
     });
+
+    // (Eliminamos el bloque if (!user) porque con upsert el usuario SIEMPRE existirá)
 
     // Si el usuario no existe, retornamos error 404
     if (!user) {
