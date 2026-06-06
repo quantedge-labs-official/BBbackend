@@ -1,0 +1,201 @@
+// Definimos el generador del cliente de Prisma
+generator client {
+  // Usamos el cliente de Prisma para JavaScript/TypeScript
+  provider = "prisma-client-js"
+}
+
+// Definimos la fuente de datos de la base de datos
+datasource db {
+  // Usamos PostgreSQL como proveedor de base de datos
+  provider = "postgresql"
+  // La URL de conexión se obtiene de la variable de entorno DATABASE_URL
+  url      = env("DATABASE_URL")
+}
+
+// Definimos el enum Market con los 3 mercados disponibles
+enum Market {
+  // Mercado Bitcoin contra Dólar
+  BTC_USD
+  // Mercado Ethereum contra Dólar
+  ETH_USD
+  // Mercado SPCX
+  SPCX
+}
+
+// Definimos el enum Side con las dos direcciones posibles de una posición
+enum Side {
+  // Posición larga (apuesta a la subida)
+  LONG
+  // Posición corta (apuesta a la bajada)
+  SHORT
+}
+
+// Definimos el enum WithdrawalStatus con los estados posibles de un retiro
+enum WithdrawalStatus {
+  // Retiro completado y procesado
+  COMPLETED
+  // Retiro pendiente de revisión manual (para montos > 10000)
+  PENDING_REVIEW
+}
+
+// Definimos el enum CloseReason con las razones por las que se cierra una posición
+enum CloseReason {
+  // Cierre manual por el usuario
+  CLOSED
+  // Cierre por liquidación (pérdida del 90% del margen)
+  LIQUIDATED
+  // Cierre por Stop Loss
+  SL
+  // Cierre por Take Profit
+  TP
+}
+
+// Modelo User: representa a un usuario del broker
+model User {
+  // Identificador único del usuario (CUID para seguridad)
+  id                String            @id @default(cuid())
+  // Dirección de wallet del usuario (única para identificarlo)
+  walletAddress     String            @unique
+  // Balance disponible del usuario para operar
+  availableBalance  Decimal           @default(0)
+  // Relación uno a muchos con los depósitos del usuario
+  deposits          Deposit[]
+  // Relación uno a muchos con las solicitudes de retiro del usuario
+  withdrawals       WithdrawalRequest[]
+  // Relación uno a muchos con las posiciones activas del usuario
+  positions         Position[]
+  // Relación uno a muchos con las órdenes pendientes del usuario
+  pendingOrders     PendingOrder[]
+  // Relación uno a muchos con el historial de trades del usuario
+  tradeHistory      TradeHistory[]
+  // Fecha de creación del usuario
+  createdAt         DateTime          @default(now())
+  // Fecha de última actualización del usuario
+  updatedAt         DateTime          @updatedAt
+}
+
+// Modelo Deposit: representa un depósito de fondos
+model Deposit {
+  // Identificador único del depósito
+  id          String   @id @default(cuid())
+  // ID del usuario que realizó el depósito
+  userId      String
+  // Relación muchos a uno con el usuario
+  user        User     @relation(fields: [userId], references: [id])
+  // Monto del depósito
+  amount      Decimal
+  // Hash de la transacción on-chain (único para evitar replay attacks)
+  txHash      String   @unique
+  // Fecha de creación del depósito
+  createdAt   DateTime @default(now())
+}
+
+// Modelo WithdrawalRequest: representa una solicitud de retiro
+model WithdrawalRequest {
+  // Identificador único de la solicitud de retiro
+  id        String           @id @default(cuid())
+  // ID del usuario que solicita el retiro
+  userId    String
+  // Relación muchos a uno con el usuario
+  user      User             @relation(fields: [userId], references: [id])
+  // Monto a retirar
+  amount    Decimal
+  // Estado del retiro (COMPLETED o PENDING_REVIEW)
+  status    WithdrawalStatus @default(PENDING_REVIEW)
+  // Fecha de creación de la solicitud
+  createdAt DateTime         @default(now())
+}
+
+// Modelo Position: representa una posición abierta
+model Position {
+  // Identificador único de la posición
+  id                 String      @id @default(cuid())
+  // ID del usuario dueño de la posición
+  userId             String
+  // Relación muchos a uno con el usuario
+  user               User        @relation(fields: [userId], references: [id])
+  // Mercado de la posición (BTC_USD, ETH_USD o SPCX)
+  market             Market
+  // Dirección de la posición (LONG o SHORT)
+  side               Side
+  // Apalancamiento de la posición (1 a 50)
+  leverage           Int
+  // Margen bloqueado para la posición
+  margin             Decimal
+  // Tamaño nocional en dólares (cambio de 'size' a 'sizeUsd')
+  sizeUsd            Decimal
+  // Precio de entrada de la posición (con slippage aplicado)
+  entryPrice         Decimal
+  // Precio de liquidación de la posición
+  liquidationPrice   Decimal
+  // Precio de Stop Loss (opcional)
+  stopLossPrice      Decimal?
+  // Precio de Take Profit (opcional)
+  takeProfitPrice    Decimal?
+  // Índice para acelerar búsquedas por mercado en el Sniper
+  @@index([market])
+  // Índice para acelerar búsquedas por usuario en el Sniper
+  @@index([userId])
+  // Fecha de creación de la posición
+  createdAt          DateTime    @default(now())
+  // Fecha de última actualización de la posición
+  updatedAt          DateTime    @updatedAt
+}
+
+// Modelo PendingOrder: representa una orden limit pendiente de ejecución
+model PendingOrder {
+  // Identificador único de la orden pendiente
+  id          String   @id @default(cuid())
+  // ID del usuario que creó la orden
+  userId      String
+  // Relación muchos a uno con el usuario
+  user        User     @relation(fields: [userId], references: [id])
+  // Mercado de la orden (BTC_USD, ETH_USD o SPCX)
+  market      Market
+  // Dirección de la orden (LONG o SHORT)
+  side        Side
+  // Apalancamiento de la orden (1 a 50)
+  leverage    Int
+  // Margen bloqueado para la orden
+  margin      Decimal
+  // Tamaño nocional en dólares (cambio de 'size' a 'sizeUsd')
+  sizeUsd     Decimal
+  // Precio límite para ejecutar la orden
+  limitPrice  Decimal
+  // Precio de Stop Loss (opcional) - AÑADIDO
+  stopLossPrice Decimal?
+  // Precio de Take Profit (opcional) - AÑADIDO
+  takeProfitPrice Decimal?
+  // Índice para acelerar búsquedas por mercado en el Sniper
+  @@index([market])
+  // Índice para acelerar búsquedas por usuario en el Sniper
+  @@index([userId])
+  // Fecha de creación de la orden
+  createdAt   DateTime @default(now())
+}
+
+// Modelo TradeHistory: representa un trade cerrado en el historial
+model TradeHistory {
+  // Identificador único del registro de trade
+  id           String      @id @default(cuid())
+  // ID del usuario que realizó el trade
+  userId       String
+  // Relación muchos a uno con el usuario
+  user         User        @relation(fields: [userId], references: [id])
+  // Mercado del trade (BTC_USD, ETH_USD o SPCX)
+  market       Market
+  // Dirección del trade (LONG o SHORT)
+  side         Side
+  // Tamaño nocional en dólares (cambio de 'size' a 'sizeUsd')
+  sizeUsd      Decimal
+  // Precio de entrada del trade
+  entryPrice   Decimal
+  // Precio de cierre del trade
+  closePrice   Decimal
+  // Profit and Loss del trade (positivo si ganancia, negativo si pérdida)
+  pnl          Decimal
+  // Razón del cierre (CLOSED, LIQUIDATED, SL o TP)
+  closeReason  CloseReason
+  // Fecha de creación del registro
+  createdAt    DateTime    @default(now())
+}
