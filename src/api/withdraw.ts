@@ -42,24 +42,9 @@ export async function POST(req: NextRequest) {
         throw new Error('User not found');
       }
 
-      // Si el amount es mayor a 10000, el retiro requiere aprobación manual
-      if (amount > 10000) {
-        // Creamos la solicitud de retiro con estado PENDING_REVIEW
-        const withdrawal = await tx.withdrawalRequest.create({
-          data: {
-            userId: user.id,
-            amount,
-            status: 'PENDING_REVIEW'
-          }
-        });
-
-        // Retornamos la solicitud de retiro creada
-        return { withdrawal, user, requiresApproval: true };
-      }
-
-      // Para retiros menores o iguales a 10000, procesamos automáticamente
       // Usamos Optimistic Concurrency Control: el where incluye la condición de saldo
       // Esto previene race conditions donde múltiples peticiones concurrentes podrían dejar el saldo en negativo
+      // El decrement se ejecuta SIEMPRE primero para evitar retiros infinitos
       const updatedUser = await tx.user.update({
         where: { 
           id: user.id,
@@ -75,17 +60,20 @@ export async function POST(req: NextRequest) {
       // Si el update no afectó ninguna fila (saldo insuficiente), Prisma lanza error
       // Esto es manejado por el bloque catch
 
-      // Creamos la solicitud de retiro con estado COMPLETED
+      // Determinamos el estado del retiro según el monto
+      const status = amount > 10000 ? 'PENDING_REVIEW' : 'COMPLETED';
+
+      // Creamos la solicitud de retiro con el estado correspondiente
       const withdrawal = await tx.withdrawalRequest.create({
         data: {
           userId: user.id,
           amount,
-          status: 'COMPLETED'
+          status
         }
       });
 
-      // Retornamos el retiro completado y el usuario actualizado
-      return { withdrawal, updatedUser, requiresApproval: false };
+      // Retornamos el retiro y el usuario actualizado
+      return { withdrawal, updatedUser, requiresApproval: status === 'PENDING_REVIEW' };
     });
 
     // Si el retiro requiere aprobación manual
