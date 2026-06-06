@@ -2,18 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 // Importamos el cliente de Prisma para interactuar con la base de datos
 import { prisma } from '@/lib/prisma';
-// Importamos el middleware para validar el API_SECRET_KEY
-import { validateApiSecret } from '@/lib/middleware';
 // Importamos las utilidades para validaciones
 import { validatePositiveNumber } from '@/lib/utils';
 
-// Función handler para el endpoint POST /api/order/cancel-limit (PROTEGIDO)
+// Función handler para el endpoint POST /api/order/cancel-limit (PÚBLICO)
 export async function POST(req: NextRequest) {
-  // Validamos el API_SECRET_KEY en los headers (protección contra llamadas no autorizadas)
-  const authError = validateApiSecret(req);
-  // Si hay error de autenticación, retornamos la respuesta de error
-  if (authError) return authError;
-
   try {
     // Parseamos el body del request para obtener los datos de cancelación
     const { walletAddress, pendingOrderId } = await req.json();
@@ -65,8 +58,7 @@ export async function POST(req: NextRequest) {
       const makerFee = Number(pendingOrder.sizeUsd) * 0.0002; // 0.02%
       const returnAmount = Number(pendingOrder.margin) + makerFee;
 
-      // Usamos Optimistic Concurrency Control: el where incluye la condición de saldo
-      // Esto previene race conditions donde múltiples peticiones concurrentes podrían causar inconsistencias
+      // Actualizamos el balance del usuario devolviendo el margen + maker fee
       const updatedUser = await tx.user.update({
         where: { 
           id: user.id
