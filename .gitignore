@@ -1,0 +1,18 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (¡NUNCA SUBIR A GITHUB!)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Prisma
+prisma/migrations/
